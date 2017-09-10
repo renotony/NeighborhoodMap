@@ -1,0 +1,234 @@
+<html>
+ <head>
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width,initial-scale=1">
+   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+   <link rel="stylesheet" type="text/css" href="css\style.css">
+ </head>
+ <body>
+   <header class="header">
+     <div class="header__inner">
+       <h1 class="header__title">
+         My Neighborhood
+       </h1>
+       <a id="menu" class="header__menu">
+         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+           <path d="M2 6h20v3H2zm0 5h20v3H2zm0 5h20v3H2z"/>
+         </svg>
+       </a>
+     </div>
+   </header>
+   <!-- <nav id="drawer" class="nav">
+     <ul class="nav__list">
+       <li class="nav__item"><a href="#">News</a></li>
+       <li class="nav__item"><a href="#">Events</a></li>
+       <li class="nav__item"><a href="#">Culture</a></li>
+       <li class="nav__item"><a href="#">Blog</a></li>
+     </ul>
+   </nav> -->
+   <div class="container">
+     <div class="options-box">
+       <h1>Find Schools in Washoe County</h1>
+       <select data-bind="options: levels, selectedOptions: selectedLevel, optionsCaption: 'Choose School Level'">
+       </select>
+       <select data-bind="options: cities, selectedOptions: selectedCity, optionsCaption: 'Choose School City'">
+       </select>
+       <div>
+           <span class="text">List of Washoe County Schools</span>
+       </div>
+       <h5 data-bind="visible: viewModel.filteredSchools().length == 0">
+         There are no schools that meet the chosen criteria.  Please choose again.
+      </h5>
+       <table>
+          <thead>
+            <tr><th>School Name</th><th>School Level</th><th>School Address</th><th>School City</th><th>School State</th><th>School Zip</th></tr>
+          </thead>
+          <tbody data-bind="foreach: filteredSchools">
+            <tr data-bind="click: $root.showInfo">
+              <td align="left"><div style="display:block; word-wrap: break-word; width: 56px;" data-bind="text: schoolName"></div></td>
+              <td align="left"><div style="display:block; word-wrap: break-word; width: 50px;" data-bind="text: schoolLevel"></div></td>
+              <td align="left"><div style="display:block; word-wrap: break-word; width: 66px;" data-bind="text: schoolAddress"></div></td>
+              <td data-bind="text: schoolCity"></td>
+              <td align="left"><div style="display:block; word-wrap: break-word; width: 40px;" data-bind="text: schoolState"></div></td>
+              <td data-bind="text: schoolZip"></td>
+            </tr>
+          </tbody>
+        </table>
+     </div>
+   <div id='map'></div>
+</div>
+<script>
+   var map;
+   var markers = [];
+   var largeInfowindow;
+   var bounds;
+
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: {lat: 39.5036943, lng: -119.8085719},
+      zoom: 12,
+      mapTypeControl: false
+    });
+
+    var defaultIcon = makeMarkerIcon('0091ff');
+    var highlightedIcon = makeMarkerIcon('FFFF24');
+
+
+    largeInfowindow = new google.maps.InfoWindow();
+
+     for (var i = 0; i < viewModel.filteredSchools().length; i++) {
+       // Get the position from the location array.
+       var position = viewModel.filteredSchools()[i].location;
+       var title = viewModel.filteredSchools()[i].schoolName + ' ' + viewModel.filteredSchools()[i].schoolLevel;
+       // Create a marker per location, and put into markers array.
+       var marker = new google.maps.Marker({
+         position: position,
+         title: title,
+         animation: google.maps.Animation.DROP,
+         icon: defaultIcon,
+         id: i
+       });
+       // Push the marker to our array of markers.
+       markers.push(marker);
+
+       viewModel.filteredSchools()[i].marker = marker;
+       viewModel.filteredSchools()[i].vInfowindow = largeInfowindow;
+       // Create an onclick event to open the large infowindow at each marker.
+       marker.addListener('click', function() {
+         toggleBounce(this);
+         populateInfoWindow(this, largeInfowindow);
+       });
+       // Two event listeners - one for mouseover, one for mouseout,
+       // to change the colors back and forth.
+       marker.addListener('mouseover', function() {
+         this.setIcon(highlightedIcon);
+       });
+       marker.addListener('mouseout', function() {
+         this.setIcon(defaultIcon);
+       });
+     }
+     showfMarkers();
+   }
+    function toggleBounce(marker) {
+      if (marker.getAnimation() !== null) {
+        marker.setAnimation(null);
+      } else {
+        marker.setAnimation(google.maps.Animation.BOUNCE);
+      }
+    }
+
+
+
+
+
+
+     function populateInfoWindow(marker, infowindow) {
+       // Check to make sure the infowindow is not already opened on this marker.
+       if (infowindow.marker != marker) {
+         // Clear the infowindow content to give the streetview time to load.
+         infowindow.setContent('');
+         infowindow.marker = marker;
+         // Make sure the marker property is cleared if the infowindow is closed.
+         infowindow.addListener('closeclick', function() {
+           infowindow.marker = null;
+         });
+         var streetViewService = new google.maps.StreetViewService();
+         var radius = 50;
+         // In case the status is OK, which means the pano was found, compute the
+         // position of the streetview image, then calculate the heading, then get a
+         // panorama from that and set the options
+         function getStreetView(data, status) {
+           if (status == google.maps.StreetViewStatus.OK) {
+             var nearStreetViewLocation = data.location.latLng;
+             var heading = google.maps.geometry.spherical.computeHeading(
+               nearStreetViewLocation, marker.position);
+               infowindow.setContent('<div>' + marker.title + '</div><div id="pano"></div>' + '<div>' + marker.title + '</div>');
+               var panoramaOptions = {
+                 position: nearStreetViewLocation,
+                 pov: {
+                   heading: heading,
+                   pitch: 30
+                 }
+               };
+             var panorama = new google.maps.StreetViewPanorama(
+               document.getElementById('pano'), panoramaOptions);
+           } else {
+             infowindow.setContent('<div>' + marker.title + '</div>' +
+               '<div>No Street View Found</div>');
+           }
+         }
+         // Use streetview service to get the closest streetview image within
+         // 50 meters of the markers position
+         streetViewService.getPanoramaByLocation(marker.position, radius, getStreetView);
+         // Open the infowindow on the correct marker.
+         infowindow.open(map, marker);
+       }
+     }
+
+
+     function showMarkers() {
+       bounds = new google.maps.LatLngBounds();
+       // Extend the boundaries of the map for each marker and display the marker
+       for (var i = 0; i < markers.length; i++) {
+         markers[i].setMap(map);
+         bounds.extend(markers[i].position);
+       }
+       map.fitBounds(bounds);
+     }
+
+     function showfMarkers() {
+       bounds = new google.maps.LatLngBounds();
+       for (var i = 0; i< markers.length; i++) {
+         markers[i].setMap(null);
+       }
+       for (var i = 0; i< viewModel.filteredSchools().length; i++) {
+         viewModel.filteredSchools()[i].marker.setMap(map);
+         bounds.extend(viewModel.filteredSchools()[i].marker.position);
+       }
+       map.fitBounds(bounds)
+     }
+
+     function makeMarkerIcon(markerColor) {
+       var markerImage = new google.maps.MarkerImage(
+         'http://chart.googleapis.com/chart?chst=d_map_spin&chld=1.15|0|'+ markerColor +
+         '|40|_|%E2%80%A2',
+         new google.maps.Size(21, 34),
+         new google.maps.Point(0, 0),
+         new google.maps.Point(10, 34),
+         new google.maps.Size(21,34));
+       return markerImage;
+     }
+
+
+
+
+
+</script>
+
+   <script>
+     /*
+      * Open the drawer when the menu ison is clicked.
+      */
+     var menu = document.querySelector('#menu');
+     var main = document.querySelector('body');
+     var drawer = document.querySelector('.nav');
+
+     menu.addEventListener('click', function(e) {
+       drawer.classList.toggle('open');
+       e.stopPropagation();
+     });
+     main.addEventListener('click', function() {
+       drawer.classList.remove('open');
+     });
+
+   </script>
+   <script type='text/javascript' src='js\knockout-3.4.2.js'></script>
+   <script type='text/javascript' src='js\jscript.js'></script>
+
+   <!--TODO: Load the JS API ASYNCHRONOUSLY below.-->
+   <script async defer
+       src=
+       "https://maps.googleapis.com/maps/api/js?key=AIzaSyBf6IF5FjVCtvtdcY0k_2qQTwLulPu4I6w&libraries=places,drawing,geometry&v=3&callback=initMap">
+   </script>
+ </body>
+</html>
